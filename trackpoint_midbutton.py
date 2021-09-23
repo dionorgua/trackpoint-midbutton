@@ -142,6 +142,8 @@ def main(args):
                         state.offset_y += e.value
                     if abs(state.offset_x) + abs(state.offset_y) > state.settings.max_offset:
                         state.send_queued_and_clear()
+                    else:
+                        continue
             if e.type == libevdev.EV_KEY:
                 if e.value:
                     # Down
@@ -155,11 +157,11 @@ def main(args):
                         log_dbg("Additional DOWN:", e)
                         if not state.emulating:
                             log_dbg("MIDDLE!")
-                            state.emulating = True
                             qe = state.queued_event
                             state.queued_event = libevdev.InputEvent(libevdev.EV_KEY.BTN_MIDDLE, qe.value, qe.sec,
                                                                      qe.usec)
-                            state.send_queued()
+                            state.send_queued_and_clear()
+                            state.emulating = True
                             # eat original event
                             continue
                 else:
