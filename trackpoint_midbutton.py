@@ -129,55 +129,60 @@ def main(args):
                 state.send_queued_and_clear()
             continue
 
-        for e in input_dev.events():
-            if e.type == libevdev.EV_SYN:
-                if state.queued_event:
-                    # Skip SYN_REPORT if we've postponed event
-                    continue
-            if e.type == libevdev.EV_REL:
-                if state.queued_event is not None:
-                    if e.code == libevdev.EV_REL.REL_X:
-                        state.offset_x += e.value
-                    elif e.code == libevdev.EV_REL.REL_Y:
-                        state.offset_y += e.value
-                    if abs(state.offset_x) + abs(state.offset_y) > state.settings.max_offset:
-                        state.send_queued_and_clear()
-                    else:
+        try:
+            for e in input_dev.events():
+                if e.type == libevdev.EV_SYN:
+                    if state.queued_event:
+                        # Skip SYN_REPORT if we've postponed event
                         continue
-            if e.type == libevdev.EV_KEY:
-                if e.value:
-                    # Down
-                    if state.queued_event is None:
-                        # Initial down
-                        state.queued_event = e
-                        state.settings = BTN_SETTINGS[e.code]
-                        log_dbg("Initial DOWN: ", e, state.settings)
-                        continue
-                    else:
-                        log_dbg("Additional DOWN:", e)
-                        if not state.emulating:
-                            log_dbg("MIDDLE!")
-                            qe = state.queued_event
-                            state.queued_event = libevdev.InputEvent(libevdev.EV_KEY.BTN_MIDDLE, qe.value, qe.sec,
-                                                                     qe.usec)
+                if e.type == libevdev.EV_REL:
+                    if state.queued_event is not None:
+                        if e.code == libevdev.EV_REL.REL_X:
+                            state.offset_x += e.value
+                        elif e.code == libevdev.EV_REL.REL_Y:
+                            state.offset_y += e.value
+                        if abs(state.offset_x) + abs(state.offset_y) > state.settings.max_offset:
                             state.send_queued_and_clear()
-                            state.emulating = True
-                            # eat original event
+                        else:
                             continue
-                else:
-                    # Up
-                    if state.emulating:
-                        log_dbg("UP MIDDLE")
-                        state.emulating = False
-                        state.queued_event = libevdev.InputEvent(libevdev.EV_KEY.BTN_MIDDLE, e.value, e.sec, e.usec)
-                        state.send_queued()
-                        continue
-                    elif state.queued_event is not None:
-                        log_dbg("UP:", e)
-                        state.send_queued_and_clear()
+                if e.type == libevdev.EV_KEY:
+                    if e.value:
+                        # Down
+                        if state.queued_event is None:
+                            # Initial down
+                            state.queued_event = e
+                            state.settings = BTN_SETTINGS[e.code]
+                            log_dbg("Initial DOWN: ", e, state.settings)
+                            continue
+                        else:
+                            log_dbg("Additional DOWN:", e)
+                            if not state.emulating:
+                                log_dbg("MIDDLE!")
+                                qe = state.queued_event
+                                state.queued_event = libevdev.InputEvent(libevdev.EV_KEY.BTN_MIDDLE, qe.value, qe.sec,
+                                                                         qe.usec)
+                                state.send_queued_and_clear()
+                                state.emulating = True
+                                # eat original event
+                                continue
+                    else:
+                        # Up
+                        if state.emulating:
+                            log_dbg("UP MIDDLE")
+                            state.emulating = False
+                            state.queued_event = libevdev.InputEvent(libevdev.EV_KEY.BTN_MIDDLE, e.value, e.sec, e.usec)
+                            state.send_queued()
+                            continue
+                        elif state.queued_event is not None:
+                            log_dbg("UP:", e)
+                            state.send_queued_and_clear()
 
-            log_dbg("SEND: ", e)
-            output_dev.send_events([e])
+                log_dbg("SEND: ", e)
+                output_dev.send_events([e])
+        except libevdev.EventsDroppedException:
+            log_msg('State lost, re-synching:')
+            for e in input_dev.sync():
+                log_msg(e)
 
 
 if __name__ == "__main__":
